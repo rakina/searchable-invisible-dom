@@ -11,19 +11,45 @@ An increasing amount of content on the web is becoming virtualized: that is, kep
 Virtualized content can create a poor user experience in several areas:
 
 -   **Find in page**: the browser's native find-in-page functionality searches over DOM, which does not contain any off-screen data.
-
 -   **Anchor navigation**: if a visible piece of content links, using `<a href="#anchor">`, to some piece of content that is currently being virtualized, navigation to the anchor will fail.
-
 -   **Indexability**: search engines ingest pages based on rendering them with a headless browser, and inspecting the contents of the DOM (along with other information such as style and layout). Virtualized content thus ends up not indexed by search engines.
-
 -   **Accessibility**: accessibility tools create their accessibility tree from the DOM, and so don't include virtualized content.
 
 
 Example
 -------
 
+Here we have a list of items, and we add more items to the DOM asynchronously, and set up
+an event handler to remove the invisible-ness when needed. Note that this is a very simple example and doesn't handle more complex stuff such as adding the invisible-ness to elements that aren't on the viewport anymore, etc.
+
 ```html
-stuff
+<ul id="itemsList">
+ <div>Item #1</div>
+ <div>Item #2</div>
+ <div>Item #3</div>
+</ul>
+
+<script>
+remainingItems.forEach(item => {
+  // Add the remaining list items asynchronously.
+  requestIdleCallback((deadline) => {
+    let itemEl = createElementForItem(item);
+    itemEl.setAttribute("invisible", "");
+  	itemsList.appendChilditemElel);
+    
+    // Set up handler to show element when needed.
+    item.addEventListener("activateinvisible", (e) => {
+      e.preventDefault();
+      // Show this element and some elements nearby.
+      let el = itemEl;
+      for (let i = 0; i < NEARBY_ELEMENTS_TO_SHOW; ++i) {
+        el.removeAttribute("invisible");
+        el = el.previousElementSibling;
+      }
+    }); 
+  }); 
+});
+</script>
 ```
 
 
@@ -51,20 +77,6 @@ Some things that the `static` mode will do:
 -   Defer loading of resources
 -   [There might be more!]
 
-Problems, revisited
--------------------
-
-### Find in page
-Since the contents are in the DOM already, find-in-page should be able to search through the contents of the searchable invisible element. Matches in searchable invisible elements are counted in the total match. They aren't highlighted because they are invisible, but when a certain match needs to be shown (as the active/main/focused match), the activation event `activateinvisible` will be dispatched.
-
-### Anchor navigation
-When we want to navigate to a searchable invisible Element, the activation event will be dispatched and navigation continues after that.
-
-### Indexability
-Crawler bots will be able to see the contents of searchable invisible elements.
-
-### Accessibility
-Accessibility tree nodes can be constructed for searchable invisible elements.
 
 Activation Event
 ----------------
@@ -93,5 +105,81 @@ If the event is not canceled, the default event handler of the event will remove
 
 Note that in most cases, you might not want to rely on the default event handler because it only shows the element (and it's ancestors' subtree). Most likely you'll want to also do make some other elements invisible, or maybe make neighboring elements not invisible etc.
 
-Web authors can cancel the event and do more advanced stuff like showing all previous elements, etc. A very rough example of how this might be used is as follows:
+Web authors can cancel the event and do more advanced stuff like showing all previous elements, etc. as seen on the example above. Another good practice would be to use event delegation on the common ancestors of many invisible elements.
 
+```js
+// We have just one event listener instead of N same ones!
+itemsList.addEventListener("activateinvisible", (e) => {
+  e.preventDefault();
+  e.activatedElement.removeAttribute("invisible");
+});
+```
+
+Problems, revisited
+-------------------
+
+#### Find in page
+Since the contents are in the DOM already, find-in-page should be able to search through the contents of the searchable invisible element. Matches in searchable invisible elements are counted in the total match. They aren't highlighted because they are invisible, but when a certain match needs to be shown (as the active/main/focused match), the activation event `activateinvisible` will be dispatched.
+
+#### Anchor navigation
+When we want to navigate to a searchable invisible element, the activation event `activateinvisible` will be dispatched and navigation continues after that.
+
+#### Indexability
+Crawler bots will be able to see the contents of searchable invisible elements.
+
+#### Accessibility
+Accessibility tree nodes can be constructed from searchable invisible elements in the DOM.
+
+
+More Examples
+----------------
+Adding items that needs heavy setup, and handling when it needs to be shown but not ready yet.
+```js
+listOfExpensiveItems.forEach(expensiveItem => {
+  // createPlainInvisibleElement creates an invisible element for expensiveItem that contains only
+  // the barebones - things that are available currently for the item/doesn't need expensive operations.
+  let nonCompleteElement = createPlainInvisibleElement(expensiveItem);
+  itemsList.appendChild(nonCompleteElement);
+  loadStuffForItem(expensiveItem).then((stuff) => {
+     enhanceElementWithExtraStuff(expensiveItem, stuff);
+  });
+});
+```
+
+Using `activateinvisible` events to load items nearby that aren't fetched yet.
+
+```js
+item.addEventListener("activateinvisible", (e) => {
+  let el = e.activatedElement;
+  // shouldLoadMoreItemsNearElement returns true if we are nearing the end of currently loaded elements,
+  // and we should start fetching from server etc to add more elements to the list (if there are more to add).
+  if (shouldLoadMoreItemsNearElement(el)) {
+    let newItemsPromise = loadElementsAfter(el);
+    insertAsInvisibleElements(newItemsPromise);
+  }
+});
+```
+
+Upgrading custom elements in `static` subtrees asynchronously.
+
+```js
+let nonUpgradedElement = createInvisibleStaticElement(item);
+itemsList.appendChild(nonUpgradedElement);
+nonUpgradedElements.push(item);
+...
+function upgradeElements(deadline) {
+  let i = 0;
+  for (i = 0; i < nonUpgradedElements.length && deadline.timeRemaining() > 0; ++i){
+    customElements.upgrade(nonUpgradedElements[i]);
+  }
+  if (i < nonUpgradedElements.length) {
+    nonUpgradedElements = nonUpgradedElements.slice(i);
+    requestIdleCallback(upgradeElements);
+  }
+}
+```
+
+Detecting an element is not in the viewport anymore and adding invisibility to it.
+```js
+TODO
+```
