@@ -40,11 +40,14 @@ remainingItems.forEach(item => {
     // Set up handler to show element when needed.
     item.addEventListener("activateinvisible", (e) => {
       e.preventDefault();
-      // Show this element and some elements nearby.
-      let el = itemEl;
-      for (let i = 0; i < NEARBY_ELEMENTS_TO_SHOW; ++i) {
-        el.removeAttribute("invisible");
-        el = el.previousElementSibling;
+      // Show this element and some elements nearby, and hide
+      // everything else. This is a very unefficient way of doing it :)
+      const currentPosition = getPosition(item);
+      for (let i = 0; i < itemsList.children.length; i++) {
+        if (shouldBeShown(itemsList.children[i], currentPosition))
+          itemsList.children[i].removeAttribute("invisible");
+        else
+          itemsList.children[i].setAttribute("invisible", "");
       }
     }); 
   }); 
@@ -105,7 +108,7 @@ If the event is not canceled, the default event handler of the event will remove
 
 Note that in most cases, you might not want to rely on the default event handler because it only shows the element (and it's ancestors' subtree). Most likely you'll want to also do make some other elements invisible, or maybe make neighboring elements not invisible etc.
 
-Web authors can cancel the event and do more advanced stuff like showing all previous elements, etc. as seen on the example above. Another good practice would be to use event delegation on the common ancestors of many invisible elements.
+Web authors can cancel the event and do more advanced stuff like showing elements not in the viewport, etc. as seen on the example above. Another good practice would be to use event delegation on the common ancestors of many invisible elements.
 
 ```js
 // We have just one event listener instead of N same ones!
@@ -136,12 +139,17 @@ More Examples
 Adding items that needs heavy setup, and handling when it needs to be shown but not ready yet.
 ```js
 listOfExpensiveItems.forEach(expensiveItem => {
-  // createPlainInvisibleElement creates an invisible element for expensiveItem that contains only
-  // the barebones - things that are available currently for the item/doesn't need expensive operations.
-  let nonCompleteElement = createPlainInvisibleElement(expensiveItem);
+  // expensiveItems have basic contents that might be useful/needed early. It will do
+  // expensive operations needed for the full version asynchronously.
+  // When we do need to show the element we will force the expensive operations.
+  let nonCompleteElement = document.createElement(expensiveItem.tagName);
+  nonCompleteElement.setAttribute("invisible", "");
+  nonCompleteElement.innerHTML = expensiveItem.basicHTMLcontent;
   itemsList.appendChild(nonCompleteElement);
-  loadStuffForItem(expensiveItem).then((stuff) => {
-     enhanceElementWithExtraStuff(expensiveItem, stuff);
+
+  requestIdleCallback(expensiveItem.doExpensiveOperation); 
+  nonCompleteElement.addEventListener("activateinvisible", () => {
+    expensiveItem.finishExpensiveOperation();
   });
 });
 ```
@@ -151,11 +159,10 @@ Using `activateinvisible` events to load items nearby that aren't fetched yet.
 ```js
 item.addEventListener("activateinvisible", (e) => {
   let el = e.activatedElement;
-  // shouldLoadMoreItemsNearElement returns true if we are nearing the end of currently loaded elements,
-  // and we should start fetching from server etc to add more elements to the list (if there are more to add).
+  // shouldLoadMoreItemsNearElement returns true if we are nearing the end of currently loaded
+  // elements, and we should start fetching from server etc to add more elements to the list.
   if (shouldLoadMoreItemsNearElement(el)) {
-    let newItemsPromise = loadElementsAfter(el);
-    insertAsInvisibleElements(newItemsPromise);
+    loadItemsAfter(el).then((newItems) => insertAsInvisibleElements(items));
   }
 });
 ```
@@ -163,10 +170,13 @@ item.addEventListener("activateinvisible", (e) => {
 Upgrading custom elements in `static` subtrees asynchronously.
 
 ```js
-let nonUpgradedElement = createInvisibleStaticElement(item);
+let nonUpgradedElement = document.createElement("my-element");
+nonUpgradedElement.setAttribute("invisible", "static");
 itemsList.appendChild(nonUpgradedElement);
 nonUpgradedElements.push(item);
+
 ...
+
 function upgradeElements(deadline) {
   let i = 0;
   for (i = 0; i < nonUpgradedElements.length && deadline.timeRemaining() > 0; ++i){
