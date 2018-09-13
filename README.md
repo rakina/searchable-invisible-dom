@@ -35,23 +35,24 @@ remainingItems.forEach(item => {
   requestIdleCallback((deadline) => {
     let itemEl = createElementForItem(item);
     itemEl.setAttribute("invisible", "");
-  	itemsList.appendChilditemElel);
-    
-    // Set up handler to show element when needed.
-    item.addEventListener("activateinvisible", (e) => {
-      e.preventDefault();
-      // Show this element and some elements nearby, and hide
-      // everything else. This is a very unefficient way of doing it :)
-      const currentPosition = getPosition(item);
-      for (let i = 0; i < itemsList.children.length; i++) {
-        if (shouldBeShown(itemsList.children[i], currentPosition))
-          itemsList.children[i].removeAttribute("invisible");
-        else
-          itemsList.children[i].setAttribute("invisible", "");
-      }
-    }); 
+  	 itemsList.appendChild(itemEl);
   }); 
 });
+ 
+// Set up handler to show element when needed.
+itemsList.addEventListener("activateinvisible", (e) => {
+  e.preventDefault();
+  let item = e.activatedElement;
+  // Show this element and some elements nearby, and hide everything else.
+  // This is a very unefficient way of doing it :)
+  const currentPosition = getPosition(item);
+  for (let i = 0; i < itemsList.children.length; i++) {
+    if (shouldBeShown(itemsList.children[i], currentPosition))
+      itemsList.children[i].removeAttribute("invisible");
+    else
+      itemsList.children[i].setAttribute("invisible", "");
+   }
+ }); 
 </script>
 ```
 
@@ -78,21 +79,62 @@ Some things that the `static` mode will do:
 
 -   Defer custom element upgrades, unless specifically trigerred by `CustomElementsRegistry.upgrade`
 -   Defer loading of resources
+-   Defer running of scripts under the element
 -   [There might be more!]
 
+You can use it by setting the `invisible` attribute value to `static`.
+
+```html
+<div invisible="static">
+ <my-element>
+   I don't have my fancy stuff...
+ </my-element>
+ <img src="notloaded.jpg">
+ <link rel="style" type="text/css" href="notloaded.css">
+ <script>
+   notRun();
+ </script>
+</div>
+ 
+<script>
+ customElements.define("my-element", class extends HTMLElement {
+   constructor() {
+     super();
+     addFancyStuffToElement();
+   }
+ });
+</script>
+```
+As we can see from the above example, `static` mode is quite strong and brings many advantages. However web authors need to handle a lot more things by themselves when using the mode, such as asynchronously upgrading the custom elements in the background. 
 
 Activation Event
 ----------------
-
-When a searchable invisible node needs to be shown (see cases below) a DOM event of type `activateinvisible` will be sent to all of its flat tree inclusive ancestors that have the `invisible` attribute, up until the `invisible` root (highest ancestor with the `invisible` attribute) of the element. If there are `N` such ancestors, `N` events will be sent, each of them bubbling up.
 
 | property  | value  |
 |---|---|
 | bubbles  | true  |
 | composed | false |
-| target  | the ancestor |
+| target  | the ancestor with the `invisible` attribute |
 | activatedElement  | The element that needs activation  |
 
+When a searchable invisible node needs to be shown (see cases below) a DOM event of type `activateinvisible` will be sent to all of its flat tree inclusive ancestors that have the `invisible` attribute, up until the `invisible` root (highest ancestor with the `invisible` attribute) of the element, so that every `invisible` ancestor can be made visible. If there are `N` such ancestors, `N` events will be sent, each of them bubbling up. Events will be sent from the innermost elements first.
+
+Consider this tree structure:
+```html
+<div id="first">
+ <div id="second" invisible>
+  <div id="third">
+    blah
+    <div id="fourth" invisible="static">
+     bleh
+    </div>
+  </div>
+ </div>
+<div>
+```
+If we need to activate `#fourth` div, then two `activateinvisible` Events will be fired. One targeted at `#fourth` and one targeted at `#second`. The `activatedElement` in both of them is the `#fourth` div.
+
+If instead we need to activate `#third` div, only one `activateinvisible` Event will be fired, at `#second` with `#third` in the `activatedElement` field. 
 
 ### Timing
 
@@ -108,15 +150,9 @@ If the event is not canceled, the default event handler of the event will remove
 
 Note that in most cases, you might not want to rely on the default event handler because it only shows the element (and it's ancestors' subtree). Most likely you'll want to also do make some other elements invisible, or maybe make neighboring elements not invisible etc.
 
-Web authors can cancel the event and do more advanced stuff like showing elements not in the viewport, etc. as seen on the example above. Another good practice would be to use event delegation on the common ancestors of many invisible elements.
+Web authors can cancel the event and do more advanced stuff like showing elements not in the viewport, etc. and also use event delegation on the common ancestors of many invisible elements.
 
-```js
-// We have just one event listener instead of N same ones!
-itemsList.addEventListener("activateinvisible", (e) => {
-  e.preventDefault();
-  e.activatedElement.removeAttribute("invisible");
-});
-```
+Also note as the event is not `composed`, it will not pass through shadow boundaries, so web authors need to make sure if there are `invisible` elements inside a shadow tree, the event listener for it is appropriately placed.
 
 Problems, revisited
 -------------------
