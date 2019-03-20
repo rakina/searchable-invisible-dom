@@ -3,6 +3,10 @@ Searchable Invisible DOM
 
 The proposal is to create some new way of exposing DOM to the browser, that is still *searchable*, but is *invisible*. That is, find in page must be able to search within this DOM and fragment navigation should be able to find a named invisible DOM, etc., but we shouldn't need to do all the work of layout/paint/etc.
 
+# New Proposal: Display Locking
+
+Searchable Invisible DOM has merged with [Display Locking](https://github.com/WICG/display-locking), and this explainer is **no longer maintained**. With display locking, developers can **avoid paying rendering costs**, while also allowing user-agent features such as **find-in-page, accessibility, indexability, focus navigation, anchor links, etc. to work** with the display locked elements.
+
 ## Background
 
 
