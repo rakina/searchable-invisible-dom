@@ -7,6 +7,11 @@ The proposal is to create some new way of exposing DOM to the browser, that is s
 
 Searchable Invisible DOM has merged with [Display Locking](https://github.com/WICG/display-locking), and this explainer is **no longer maintained**. With display locking, developers can **avoid paying rendering costs**, while also allowing user-agent features such as **find-in-page, accessibility, indexability, focus navigation, anchor links, etc. to work** with the display locked elements.
 
+Note that this explainer and repo is no longer maintained, please direct questions or issues to the [Display Locking repo.](https://github.com/WICG/display-locking)
+
+Old Explainer
+===
+
 ## Background
 
 
